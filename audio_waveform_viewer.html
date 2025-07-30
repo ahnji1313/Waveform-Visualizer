@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waveform Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+    h1 {
+      margin-bottom: 20px;
+      color: #58a6ff;
+    }
+    input[type="file"] {
+      margin-bottom: 20px;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      background-color: #21262d;
+      color: #c9d1d9;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      max-width: 1400px;
+      background-color: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      cursor: crosshair;
+    }
+    #downloadBtn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #238636;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s ease-in-out;
+    }
+    #downloadBtn:hover {
+      background-color: #2ea043;
+    }
+    #duration, #timeHover {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #8b949e;
+    }
+  </style>
+</head>
+<body>
+  <h1>Waveform Visualizer</h1>
+  <input type="file" id="audioFile" accept="audio/*">
+  <canvas id="waveform"></canvas>
+  <div id="duration">Duration: -</div>
+  <div id="timeHover">Time: -</div>
+  <button id="downloadBtn">Download Waveform</button>
+
+  <script>
+    const fileInput = document.getElementById('audioFile');
+    const canvas = document.getElementById('waveform');
+    const ctx = canvas.getContext('2d');
+    const durationDiv = document.getElementById('duration');
+    const timeHover = document.getElementById('timeHover');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    // Set fixed dimensions to prevent overflow
+    canvas.width = 1400;
+    canvas.height = 300;
+
+    let currentDuration = 0;
+    let waveform = [];
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const audioCtx = new AudioContext();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      currentDuration = audioBuffer.duration;
+      durationDiv.textContent = `Duration: ${currentDuration.toFixed(2)}s`;
+
+      const rawData = audioBuffer.getChannelData(0);
+      const samples = 1200;
+      const blockSize = Math.floor(rawData.length / samples);
+      waveform = new Float32Array(samples);
+
+      for (let i = 0; i < samples; i++) {
+        let peak = 0;
+        for (let j = 0; j < blockSize; j++) {
+          const value = rawData[i * blockSize + j];
+          if (Math.abs(value) > peak) peak = Math.abs(value);
+        }
+        waveform[i] = peak;
+      }
+
+      drawWaveform();
+    });
+
+    function drawWaveform() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      gradient.addColorStop(0, '#ff7b72');
+      gradient.addColorStop(0.5, '#f0883e');
+      gradient.addColorStop(1, '#58a6ff');
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < waveform.length; i++) {
+        const x = (i / waveform.length) * canvas.width;
+        const amp = waveform[i] * (canvas.height / 2 - 5);
+        const y = canvas.height / 2 - amp;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!currentDuration) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const time = (x / canvas.width) * currentDuration;
+      timeHover.textContent = `Time: ${time.toFixed(2)}s`;
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = 'waveform.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  </script>
+</body>
+</html>
